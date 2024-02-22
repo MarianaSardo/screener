@@ -64,9 +64,7 @@ async def get_by_symbol(db: db_dependency, symbol: str) -> InstrumentsResponse:
 @router.post("/create_instrument", status_code=status.HTTP_201_CREATED)
 async def create_instrument(db: db_dependency, inst_request: InstrumentsRequest):
     existing_instrument = db.query(Instruments).filter(
-        (Instruments.cedear_symbol == inst_request.cedear_symbol) |
-        (Instruments.foreign_symbol == inst_request.foreign_symbol)
-    ).first()
+        Instruments.foreign_symbol == inst_request.foreign_symbol).first()
 
     if existing_instrument:
         raise HTTPException(status_code=400, detail="Instrumento ya existe con el mismo simbolo.")
