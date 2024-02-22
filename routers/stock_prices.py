@@ -11,7 +11,7 @@ from fmp import get_stock_prices
 from models import Instruments, StockPrice
 
 router = APIRouter(
-    prefix="/stock-prices",
+    prefix="/stock_prices",
     tags=["Stock Prices"]
 )
 
@@ -54,9 +54,14 @@ class StockPriceResponse(BaseModel):
 
     @validator("earnings_announcement", pre=True, always=True)
     def parse_earnings_announcement(cls, value):
-        if isinstance(value, datetime):
+        if value is None:
+            return None
+        elif isinstance(value, datetime):
             return value
-        return datetime.fromisoformat(value)
+        elif isinstance(value, str):
+            return datetime.fromisoformat(value)
+        else:
+            raise ValueError("Invalid type for earnings_announcement")
 
     @validator("timestamp", pre=True, always=True)
     def parse_timestamp(cls, value):
@@ -65,8 +70,13 @@ class StockPriceResponse(BaseModel):
         return datetime.utcfromtimestamp(value)
 
 
-cy = Depends(get_db)
+db_dependency = Annotated[Session, Depends(get_db)]
 
+
+@router.get("", response_model=List[StockPriceResponse], status_code=status.HTTP_200_OK)
+async def get_all_prices(db: db_dependency) -> List[StockPriceResponse]:
+    stock_prices = db.query(StockPrice).all()
+    return [StockPriceResponse(**stock_price.__dict__) for stock_price in stock_prices]
 
 
 @router.get("/{symbol}", response_model=StockPriceResponse, status_code=status.HTTP_200_OK)
@@ -74,11 +84,12 @@ async def get_by_symbol(db: db_dependency, symbol: str) -> StockPriceResponse:
     stock_price = db.query(StockPrice).filter(StockPrice.symbol == symbol).first()
     if stock_price is not None:
         return StockPriceResponse(**stock_price.__dict__)
-    raise HTTPException(status_code=404, detail=f'Precio no encontrado para {symbol}.')
+    raise HTTPException(status_code=404,
+                        detail=f'Precio no encontrado. El simbolo {symbol} no se encuentra en la base de datos.')
 
 
 @router.put("", response_model=str)
-async def update_all_prices(db: Session = Depends(get_db)):
+async def update_all_prices(db: db_dependency):
     symbols = [instrument.foreign_symbol for instrument in db.query(Instruments).all()]
     response = []
 
@@ -112,7 +123,7 @@ async def update_all_prices(db: Session = Depends(get_db)):
                 timestamp=stock_data["timestamp"]
             )
             db.add(stock_price)
-            print(f"Se creó el símbolo {symbol}")
+
         else:
             stock_price.price = stock_data["price"]
             stock_price.changes_percentage = stock_data["changesPercentage"]
@@ -137,7 +148,6 @@ async def update_all_prices(db: Session = Depends(get_db)):
             stock_price.timestamp = stock_data["timestamp"]
 
         db.commit()
-        print(f"Datos actualizados para el símbolo {symbol}")
 
         response.append(
             StockPriceResponse(
@@ -167,7 +177,7 @@ async def update_all_prices(db: Session = Depends(get_db)):
             )
         )
 
-        return "Actualizado"
+    return f"Registros actualizados con exito"
 
 
 @router.put("/{symbol}")
@@ -202,7 +212,6 @@ async def update_price_by_symbol(symbol: str, db: db_dependency):
         )
         db.add(stock_price)
         db.commit()
-        print(f"Se creó el símbolo {symbol}")
 
     else:
         stock_price.price = stock_data["price"]
@@ -228,6 +237,5 @@ async def update_price_by_symbol(symbol: str, db: db_dependency):
         stock_price.timestamp = stock_data["timestamp"]
 
         db.commit()
-        print(f"Datos actualizados para el símbolo {symbol}")
 
-    return f"Dato actualizado para el símbolo {symbol}"
+    return f"Datos actualizados para el símbolo {symbol}"

@@ -43,53 +43,53 @@ class InstrumentsResponse(BaseModel):
 
 @router.get("/", response_model=List[InstrumentsResponse], status_code=status.HTTP_200_OK)
 async def get_all(db: db_dependency) -> List[InstrumentsResponse]:
-    instruments = db.query(Instruments).all()
+    instrumentos = db.query(Instruments).all()
     return [InstrumentsResponse(id=inst.id,
                                 cedear_symbol=inst.cedear_symbol,
                                 foreign_market=inst.foreign_market or "",
                                 foreign_symbol=inst.foreign_symbol or "",
                                 cedear_ratio=inst.cedear_ratio or 0,
                                 foreign_ratio=inst.foreign_ratio or 0)
-            for inst in instruments]
+            for inst in instrumentos]
 
 
 @router.get("/{symbol}", response_model=InstrumentsResponse, status_code=status.HTTP_200_OK)
 async def get_by_symbol(db: db_dependency, symbol: str) -> InstrumentsResponse:
-    inst_model = db.query(Instruments).filter(Instruments.foreign_symbol == symbol).first()
-    if inst_model is not None:
-        return InstrumentsResponse(**inst_model.__dict__)
+    simbolo = db.query(Instruments).filter(Instruments.foreign_symbol == symbol).first()
+    if simbolo is not None:
+        return InstrumentsResponse(**simbolo.__dict__)
     raise HTTPException(status_code=404, detail='Instrument no encontrado.')
 
 
 @router.post("/create_instrument", status_code=status.HTTP_201_CREATED)
 async def create_instrument(db: db_dependency, inst_request: InstrumentsRequest):
-    existing_instrument = db.query(Instruments).filter(
+    inst_existe = db.query(Instruments).filter(
         Instruments.foreign_symbol == inst_request.foreign_symbol).first()
 
-    if existing_instrument:
-        raise HTTPException(status_code=400, detail="Instrumento ya existe con el mismo simbolo.")
+    if inst_existe:
+        raise HTTPException(status_code=400, detail="Ya existe un instrument con el foreign_symbol que está intentando crear.")
 
-    inst_model = models.Instruments(**inst_request.model_dump())
+    instrumento = models.Instruments(**inst_request.model_dump())
 
-    db.add(inst_model)
+    db.add(instrumento)
     db.commit()
 
-    return JSONResponse(content="Instrument creado exitosamente")
+    return JSONResponse(content="Instrument creado con exito.")
 
 
 @router.put("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def update_instrument(db: db_dependency,
                             inst_request: InstrumentsRequest,
                             id: int = Path(gt=0)):
-    inst_model = db.query(Instruments).filter(Instruments.id == id).first()
-    if inst_model is None:
+    instrumento = db.query(Instruments).filter(Instruments.id == id).first()
+    if instrumento is None:
         raise HTTPException(status_code=404, detail='Instrument no encontrado.')
 
-    inst_model.cedear_symbol = inst_request.cedear_symbol
-    inst_model.foreign_market = inst_request.foreign_market
-    inst_model.foreign_symbol = inst_request.foreign_symbol
-    inst_model.cedear_ratio = inst_request.cedear_ratio
-    inst_model.foreign_ratio = inst_request.foreign_ratio
+    instrumento.cedear_symbol = inst_request.cedear_symbol
+    instrumento.foreign_market = inst_request.foreign_market
+    instrumento.foreign_symbol = inst_request.foreign_symbol
+    instrumento.cedear_ratio = inst_request.cedear_ratio
+    instrumento.foreign_ratio = inst_request.foreign_ratio
 
     db.commit()
 
@@ -98,9 +98,9 @@ async def update_instrument(db: db_dependency,
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_instrument(db: db_dependency, id: int = Path(gt=0)):
-    inst_model = db.query(Instruments).filter(Instruments.id == id).first()
+    instrumento = db.query(Instruments).filter(Instruments.id == id).first()
 
-    if inst_model is None:
+    if instrumento is None:
         raise HTTPException(status_code=404, detail='Instrument no encontrado.')
     db.query(Instruments).filter(Instruments.id == id).delete()
     db.commit()

@@ -56,7 +56,8 @@ async def get_by_symbol(symbol: str, db: db_dependency):
     company_rating = db.query(CompanyRating).filter(CompanyRating.symbol == symbol).first()
 
     if not company_rating:
-        raise HTTPException(status_code=404, detail=f"No se encontró el company rating para {symbol}.")
+        raise HTTPException(status_code=404,
+                            detail=f'Rating no encontrado. El simbolo {symbol} no se encuentra en la base de datos.')
 
     return CompanyRatingResponse(
         id=company_rating.id,
@@ -68,7 +69,7 @@ async def get_by_symbol(symbol: str, db: db_dependency):
 
 
 @router.put("", response_model=str)
-async def update_all_ranking(db: Session = Depends(get_db)):
+async def update_all_rankings(db: db_dependency):
     symbols = [instrument.foreign_symbol for instrument in db.query(Instruments).all()]
 
     for symbol in symbols:
@@ -98,16 +99,14 @@ async def update_all_ranking(db: Session = Depends(get_db)):
                 rating_recommendation=rating_recommendation
             )
             db.add(company_rating)
-            print(f"Se creó el rating para el símbolo {symbol}")
         else:
             company_rating.rating_score = rating_score
             company_rating.rating_rating = rating_rating
             company_rating.rating_recommendation = rating_recommendation
-            print(f"Company rating actualizado para el símbolo {symbol}")
 
         db.commit()
 
-    return "Actualización completada"
+    return "Registros actualizados con exito"
 
 
 @router.put("/{symbol}", response_model=str)
@@ -136,14 +135,13 @@ async def update_by_symbol(symbol: str, db: db_dependency):
             rating_recommendation=rating_recommendation
         )
         db.add(company_rating)
-        print(f"Se creó el rating para el símbolo {symbol}")
+
     else:
         company_rating.rating_score = rating_score
         company_rating.rating_rating = rating_rating
         company_rating.rating_recommendation = rating_recommendation
 
-        print(f"Company rating actualizado para el símbolo {symbol}")
 
     db.commit()
 
-    return "Actualización completada"
+    return f"Registro actualizado para el símbolo {symbol}"
