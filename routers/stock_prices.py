@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Annotated, List, Optional, Union
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, validator
 from sqlalchemy.orm import Session
+from starlette import status
 
 from database import SessionLocal
 from fmp import get_stock_prices
@@ -64,8 +65,20 @@ class StockPriceResponse(BaseModel):
         return datetime.utcfromtimestamp(value)
 
 
-@router.get("", response_model=List[StockPriceResponse])
-async def get_all_prices(db: db_dependency):
+cy = Depends(get_db)
+
+
+
+@router.get("/{symbol}", response_model=StockPriceResponse, status_code=status.HTTP_200_OK)
+async def get_by_symbol(db: db_dependency, symbol: str) -> StockPriceResponse:
+    stock_price = db.query(StockPrice).filter(StockPrice.symbol == symbol).first()
+    if stock_price is not None:
+        return StockPriceResponse(**stock_price.__dict__)
+    raise HTTPException(status_code=404, detail=f'Precio no encontrado para {symbol}.')
+
+
+@router.put("", response_model=str)
+async def update_all_prices(db: Session = Depends(get_db)):
     symbols = [instrument.foreign_symbol for instrument in db.query(Instruments).all()]
     response = []
 
@@ -99,8 +112,7 @@ async def get_all_prices(db: db_dependency):
                 timestamp=stock_data["timestamp"]
             )
             db.add(stock_price)
-            print(f"Se creo el símbolo {symbol}")
-
+            print(f"Se creó el símbolo {symbol}")
         else:
             stock_price.price = stock_data["price"]
             stock_price.changes_percentage = stock_data["changesPercentage"]
@@ -155,16 +167,11 @@ async def get_all_prices(db: db_dependency):
             )
         )
 
-    return response
+        return "Actualizado"
 
 
-@router.get("/{symbol}", response_model=Union[StockPriceResponse, str])
-async def get_by_symbol(symbol: str, db: db_dependency):
-    instrument = db.query(Instruments).filter(Instruments.foreign_symbol == symbol).first()
-
-    if not instrument:
-        raise HTTPException(status_code=404, detail=f"El instrument {symbol} no está en la base de datos.")
-
+@router.put("/{symbol}")
+async def update_price_by_symbol(symbol: str, db: db_dependency):
     stock_data = get_stock_prices(symbol)
     stock_price = db.query(StockPrice).filter(StockPrice.symbol == symbol).first()
 
@@ -195,7 +202,8 @@ async def get_by_symbol(symbol: str, db: db_dependency):
         )
         db.add(stock_price)
         db.commit()
-        print(f"Dato agregado para el símbolo {symbol}")
+        print(f"Se creó el símbolo {symbol}")
+
     else:
         stock_price.price = stock_data["price"]
         stock_price.changes_percentage = stock_data["changesPercentage"]
@@ -220,30 +228,6 @@ async def get_by_symbol(symbol: str, db: db_dependency):
         stock_price.timestamp = stock_data["timestamp"]
 
         db.commit()
-        print(f"Dato actualizado para el símbolo {symbol}")
+        print(f"Datos actualizados para el símbolo {symbol}")
 
-    return StockPriceResponse(
-        id=stock_price.id,
-        symbol=stock_price.symbol,
-        name=stock_price.name,
-        price=stock_price.price,
-        changes_percentage=stock_price.changes_percentage,
-        change=stock_price.change,
-        day_low=stock_price.day_low,
-        day_high=stock_price.day_high,
-        year_high=stock_price.year_high,
-        year_low=stock_price.year_low,
-        market_cap=stock_price.market_cap,
-        price_avg50=stock_price.price_avg50,
-        price_avg200=stock_price.price_avg200,
-        exchange=stock_price.exchange,
-        volume=stock_price.volume,
-        avg_volume=stock_price.avg_volume,
-        open=stock_price.open,
-        previous_close=stock_price.previous_close,
-        eps=stock_price.eps,
-        pe=stock_price.pe,
-        earnings_announcement=stock_price.earnings_announcement,
-        shares_outstanding=stock_price.shares_outstanding,
-        timestamp=stock_price.timestamp,
-    )
+    return f"Dato actualizado para el símbolo {symbol}"
